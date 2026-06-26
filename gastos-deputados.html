@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gastos dos Deputados — Transparência</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    color: #ece9f2;
+    line-height: 1.5;
+    margin: 0;
+    min-height: 100vh;
+    background: #0d0b14;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* fundo aurora animado */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(40vw 40vw at 20% 30%, #6d28d9aa, transparent 60%),
+      radial-gradient(35vw 35vw at 80% 20%, #2563ebaa, transparent 60%),
+      radial-gradient(45vw 45vw at 60% 80%, #db277788, transparent 60%);
+    filter: blur(60px);
+    animation: flutuar 20s ease-in-out infinite alternate;
+  }
+  @keyframes flutuar {
+    0%   { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(3%, -3%) scale(1.12); }
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+  header { margin-bottom: 20px; }
+  h1 { font-size: 26px; color: #e9d5ff; margin-bottom: 4px; }
+  header p { color: #b9b2cc; font-size: 14px; }
+
+  #busca {
+    width: 100%;
+    padding: 14px 16px;
+    margin: 20px 0;
+    font-size: 16px;
+    border: 1px solid #ffffff22;
+    border-radius: 10px;
+    background: #1a1626cc;
+    color: #ece9f2;
+    backdrop-filter: blur(8px);
+  }
+  #busca::placeholder { color: #8b8499; }
+
+  #lista {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+
+  /* card do deputado */
+  .card {
+    background: #1a162688;
+    border: 1px solid #ffffff1a;
+    border-radius: 14px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: border-color 0.2s, transform 0.2s, background 0.2s;
+  }
+  .card:hover {
+    border-color: #c4b5fd88;
+    transform: translateY(-3px);
+    background: #221c3399;
+  }
+  .card img {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #322c44;
+  }
+  .card .nome { font-size: 14px; font-weight: 600; color: #e9d5ff; }
+  .card .meta { font-size: 12px; color: #b9b2cc; }
+
+  .aviso { padding: 40px; text-align: center; color: #b9b2cc; grid-column: 1 / -1; }
+
+  /* ====== O PAINEL DE GASTOS (abre ao clicar) ====== */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: #000000aa;
+    backdrop-filter: blur(4px);
+    display: none;            /* fica escondido até clicar num deputado */
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .overlay.aberto { display: flex; }   /* a classe "aberto" mostra o painel */
+
+  .painel {
+    background: #15121f;
+    border: 1px solid #ffffff1a;
+    border-radius: 16px;
+    max-width: 640px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .painel-topo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .painel-topo img {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+  .painel-topo h2 { font-size: 18px; color: #e9d5ff; }
+  .painel-topo p { font-size: 13px; color: #b9b2cc; }
+
+  .fechar {
+    margin-left: auto;
+    background: #2a2440;
+    border: none;
+    color: #ece9f2;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+  }
+
+  .total {
+    font-size: 14px;
+    color: #86efac;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #86efac11;
+    border-radius: 10px;
+  }
+
+  .gasto {
+    padding: 12px 0;
+    border-bottom: 1px solid #ffffff12;
+  }
+  .gasto .desc { font-size: 13px; color: #ddd6fe; }
+  .gasto .forn { font-size: 12px; color: #b9b2cc; }
+  .gasto .valor { font-size: 13px; color: #fca5a5; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <header>
+      <h1>Gastos dos Deputados</h1>
+      <p>cota parlamentar ao vivo · dados abertos da Câmara dos Deputados</p>
+    </header>
+
+    <input type="text" id="busca" placeholder="Buscar deputado por nome...">
+
+    <div id="lista">
+      <p class="aviso">Carregando deputados...</p>
+    </div>
+
+  </div>
+
+  <!-- o painel de gastos, escondido até clicar -->
+  <div class="overlay" id="overlay">
+    <div class="painel" id="painel"></div>
+  </div>
+
+<script>
+  const API = "https://dadosabertos.camara.leg.br/api/v2";
+
+  let todosDeputados = [];
+
+  const lista = document.getElementById("lista");
+  const busca = document.getElementById("busca");
+  const overlay = document.getElementById("overlay");
+  const painel = document.getElementById("painel");
+
+
+  // ====== 1. BUSCAR A LISTA DE DEPUTADOS ======
+  async function buscarDeputados() {
+    // pede os deputados em exercício, ordenados por nome
+    const url = API + "/deputados?ordem=ASC&ordenarPor=nome&itens=100";
+
+    try {
+      const resposta = await fetch(url);
+      const dados = await resposta.json();
+      // a Câmara devolve a lista dentro de "dados"
+      todosDeputados = dados.dados;
+      mostrarDeputados(dados.dados);
+    } catch (erro) {
+      lista.innerHTML = '<p class="aviso">Não consegui carregar os deputados.</p>';
+      console.error(erro);
+    }
+  }
+
+
+  // ====== 2. DESENHAR OS DEPUTADOS ======
+  function mostrarDeputados(deputados) {
+    if (deputados.length === 0) {
+      lista.innerHTML = '<p class="aviso">Nenhum deputado encontrado.</p>';
+      return;
+    }
+
+    const cards = deputados.map(function (dep) {
+      return `
+        <div class="card" onclick="abrirGastos(${dep.id})">
+          <img src="${dep.urlFoto}" alt="">
+          <div>
+            <div class="nome">${dep.nome}</div>
+            <div class="meta">${dep.siglaPartido} · ${dep.siglaUf}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    lista.innerHTML = cards;
+  }
+
+
+  // ====== 3. AO CLICAR: BUSCAR OS GASTOS DAQUELE DEPUTADO ======
+  // Esta é a parte NOVA: uma SEGUNDA chamada de API, disparada pelo clique.
+  async function abrirGastos(id) {
+    // acha o deputado clicado na lista que já temos (pra mostrar nome/foto na hora)
+    const dep = todosDeputados.find(function (d) { return d.id === id; });
+
+    // abre o painel já mostrando "carregando"
+    overlay.classList.add("aberto");
+    painel.innerHTML = `
+      <div class="painel-topo">
+        <img src="${dep.urlFoto}" alt="">
+        <div>
+          <h2>${dep.nome}</h2>
+          <p>${dep.siglaPartido} · ${dep.siglaUf}</p>
+        </div>
+        <button class="fechar" onclick="fecharPainel()">×</button>
+      </div>
+      <p class="aviso">Buscando gastos...</p>
+    `;
+
+    try {
+      // a segunda chamada: as despesas SÓ deste deputado
+      const url = API + "/deputados/" + id + "/despesas?ordem=DESC&ordenarPor=dataDocumento&itens=30";
+      const resposta = await fetch(url);
+      const dados = await resposta.json();
+      mostrarGastos(dep, dados.dados);
+    } catch (erro) {
+      painel.innerHTML += '<p class="aviso">Não consegui carregar os gastos.</p>';
+      console.error(erro);
+    }
+  }
+
+
+  // ====== 4. DESENHAR OS GASTOS NO PAINEL ======
+  function mostrarGastos(dep, gastos) {
+    // soma o total com .reduce() (acumula valor a valor)
+    const total = gastos.reduce(function (soma, g) {
+      return soma + (g.valorLiquido || 0);
+    }, 0);
+
+    // formata em reais (R$ 1.234,56)
+    const totalBR = total.toLocaleString("pt-BR", {
+      style: "currency", currency: "BRL"
+    });
+
+    // monta cada linha de gasto
+    const linhas = gastos.map(function (g) {
+      const valor = (g.valorLiquido || 0).toLocaleString("pt-BR", {
+        style: "currency", currency: "BRL"
+      });
+      return `
+        <div class="gasto">
+          <div class="desc">${g.tipoDespesa || "Despesa"}</div>
+          <div class="forn">${g.nomeFornecedor || "Fornecedor não informado"}</div>
+          <div class="valor">${valor}</div>
+        </div>
+      `;
+    }).join("");
+
+    painel.innerHTML = `
+      <div class="painel-topo">
+        <img src="${dep.urlFoto}" alt="">
+        <div>
+          <h2>${dep.nome}</h2>
+          <p>${dep.siglaPartido} · ${dep.siglaUf}</p>
+        </div>
+        <button class="fechar" onclick="fecharPainel()">×</button>
+      </div>
+      <div class="total">Soma das últimas ${gastos.length} despesas: ${totalBR}</div>
+      ${linhas}
+    `;
+  }
+
+
+  // ====== 5. FECHAR O PAINEL ======
+  function fecharPainel() {
+    overlay.classList.remove("aberto");
+  }
+  // clicar fora do painel também fecha
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) fecharPainel();
+  });
+
+
+  // ====== 6. BUSCA / FILTRO ======
+  busca.addEventListener("input", function () {
+    const termo = busca.value.toLowerCase();
+    const filtrados = todosDeputados.filter(function (dep) {
+      return dep.nome.toLowerCase().includes(termo);
+    });
+    mostrarDeputados(filtrados);
+  });
+
+
+  // ====== 7. LIGA TUDO ======
+  buscarDeputados();
+</script>
+
+</body>
+</html>
